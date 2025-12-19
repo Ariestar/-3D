@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 
-export type BlockType = 'dirt' | 'grass' | 'stone' | 'wood' | 'leaf'
+export type BlockType = 'dirt' | 'grass' | 'stone' | 'wood' | 'leaf' | 'ebonstone' | 'crimstone' | 'crimtane' | 'demonite'
 
 export interface Block {
   id: string

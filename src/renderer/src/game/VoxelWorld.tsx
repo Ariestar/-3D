@@ -1,59 +1,91 @@
-import { useLayoutEffect, useEffect, useRef } from 'react'
+import { useLayoutEffect, useEffect, useRef, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import { createNoise2D } from 'simplex-noise'
 import { useGameStore, BlockType, Block, getChunkKey, CHUNK_SIZE } from './store'
-import { ThreeEvent } from '@react-three/fiber'
+import { ThreeEvent, useLoader } from '@react-three/fiber'
+import { textureGenerators } from './textures'
 
-const colorMap: Record<BlockType, string> = {
-  dirt: '#795548',
-  grass: '#5ca904',
-  stone: '#9e9e9e',
-  wood: '#3e2723',
-  leaf: '#2e7d32',
+// Generate textures once
+const textureData = {
+    dirt: textureGenerators.dirt(),
+    grass: textureGenerators.grass(),
+    stone: textureGenerators.stone(),
+    wood: textureGenerators.wood(),
+    leaf: textureGenerators.leaf(),
+    ebonstone: textureGenerators.ebonstone(),
+    crimstone: textureGenerators.crimstone(),
+    crimtane: textureGenerators.crimtane(),
+    demonite: textureGenerators.demonite(),
 }
 
-// Sub-component for a single chunk
-const ChunkMesh = ({ blocks }: { chunkKey: string, blocks: Block[] }) => {
-  const meshRef = useRef<THREE.InstancedMesh>(null!)
+// Map BlockType to Texture Index for Texture Atlas (simplified: using individual materials for now)
+// Actually, InstancedMesh with multiple materials is hard.
+// Better to use a Texture Atlas or Color mapping.
+// Since we want "detailed textures", we should use a Texture Atlas or ArrayTexture.
+// For simplicity in this prototype, let's just stick to InstancedMesh with COLOR for now,
+// BUT apply a generic "noise" texture to everything to make it look detailed?
+//
+// WAIT! The user specifically asked for "more detailed textures".
+// Creating a Texture Atlas on the fly is complex.
+// Let's assume we use a simple approach: One InstancedMesh per BlockType?
+// That allows each block type to have its own real texture.
+// It's less efficient draw-call wise (9 draw calls instead of 1), but totally fine for < 100 block types.
 
-  useLayoutEffect(() => {
-    if (!meshRef.current) return
+const BlockMesh = ({ type, blocks }: { type: BlockType, blocks: Block[] }) => {
+    const meshRef = useRef<THREE.InstancedMesh>(null!)
+    const texture = useLoader(THREE.TextureLoader, textureData[type])
     
-    const count = blocks.length
-    if (count === 0) {
-        meshRef.current.count = 0
-        return
-    }
+    // Nearest filter for pixel art look
+    texture.magFilter = THREE.NearestFilter
+    texture.minFilter = THREE.NearestFilter
 
-    const tempObject = new THREE.Object3D()
-    const tempColor = new THREE.Color()
+    useLayoutEffect(() => {
+        if (!meshRef.current) return
+        
+        const count = blocks.length
+        if (count === 0) {
+            meshRef.current.count = 0
+            return
+        }
 
-    blocks.forEach((block, i) => {
-      tempObject.position.set(block.position[0], block.position[1], block.position[2])
-      tempObject.updateMatrix()
-      meshRef.current.setMatrixAt(i, tempObject.matrix)
-      
-      tempColor.set(colorMap[block.type])
-      meshRef.current.setColorAt(i, tempColor)
-    })
+        const tempObject = new THREE.Object3D()
 
-    meshRef.current.count = count
-    meshRef.current.instanceMatrix.needsUpdate = true
-    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true
-    
-  }, [blocks])
+        blocks.forEach((block, i) => {
+            tempObject.position.set(block.position[0], block.position[1], block.position[2])
+            tempObject.updateMatrix()
+            meshRef.current.setMatrixAt(i, tempObject.matrix)
+        })
 
-  return (
-    <instancedMesh 
-        ref={meshRef} 
-        args={[undefined, undefined, CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE]} 
-        castShadow 
-        receiveShadow
-    >
-      <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial roughness={0.8} />
-    </instancedMesh>
-  )
+        meshRef.current.count = count
+        meshRef.current.instanceMatrix.needsUpdate = true
+    }, [blocks])
+
+    return (
+        <instancedMesh ref={meshRef} args={[undefined, undefined, 2000]} castShadow receiveShadow>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshStandardMaterial map={texture} roughness={0.8} />
+        </instancedMesh>
+    )
+}
+
+const ChunkGroup = ({ chunkKey, blocks }: { chunkKey: string, blocks: Block[] }) => {
+    // Group blocks by type
+    const blocksByType = useMemo(() => {
+        const groups: Partial<Record<BlockType, Block[]>> = {}
+        blocks.forEach(b => {
+            if (!groups[b.type]) groups[b.type] = []
+            groups[b.type]!.push(b)
+        })
+        return groups
+    }, [blocks])
+
+    return (
+        <group>
+            {(Object.keys(blocksByType) as BlockType[]).map(type => (
+                <BlockMesh key={type} type={type} blocks={blocksByType[type]!} />
+            ))}
+        </group>
+    )
 }
 
 export const VoxelWorld = () => {
@@ -79,34 +111,77 @@ export const VoxelWorld = () => {
         // Terraria-like generation logic: Hills + Layers
         const surfaceY = Math.floor(noise2D(x * 0.05, z * 0.05) * 8)
         
+        // Biome Logic (Simple region based)
+        // x < -10 : Corruption
+        // x > 10 : Crimson
+        let surfaceBlock: BlockType = 'grass'
+        let subBlock: BlockType = 'dirt'
+        let stoneBlock: BlockType = 'stone'
+        
+        if (x < -15) {
+            surfaceBlock = 'ebonstone'
+            subBlock = 'ebonstone'
+            stoneBlock = 'ebonstone'
+        } else if (x > 15) {
+            surfaceBlock = 'crimstone'
+            subBlock = 'crimstone'
+            stoneBlock = 'crimstone'
+        }
+
         // Surface
-        addToChunk(x, surfaceY, z, 'grass')
+        addToChunk(x, surfaceY, z, surfaceBlock)
         
         // Dirt Layer (3 blocks deep)
         for(let d=1; d<=3; d++) {
-             addToChunk(x, surfaceY-d, z, 'dirt')
+             addToChunk(x, surfaceY-d, z, subBlock)
         }
         
         // Stone Layer (Deep)
         for(let d=4; d<=10; d++) {
-             addToChunk(x, surfaceY-d, z, 'stone')
+             addToChunk(x, surfaceY-d, z, stoneBlock)
+             
+             // Ore generation (Simple random)
+             if (Math.random() < 0.05) {
+                 if (stoneBlock === 'ebonstone') {
+                     // Demonite
+                     addToChunk(x, surfaceY-d, z, 'demonite')
+                 } else if (stoneBlock === 'crimstone') {
+                     // Crimtane
+                     addToChunk(x, surfaceY-d, z, 'crimtane')
+                 }
+             }
         }
       }
     }
     setChunks(newChunks)
   }, []) // Run once on mount
 
-  // Raycasting Handler
+  // Raycasting Handler (Selection Highlight)
+  const [hoverPos, setHoverPos] = useState<[number, number, number] | null>(null)
+  
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
-      // Prevent event from bubbling to other chunks behind this one (if any)
       e.stopPropagation()
+      
+      if (e.type === 'pointermove') {
+          // Update selection highlight
+          if (e.face) {
+              const normal = e.face.normal.clone()
+              const point = e.point.clone()
+              // Look slightly inside to find the block
+              const blockPos = point.sub(normal.multiplyScalar(0.1)).floor()
+              setHoverPos([blockPos.x, blockPos.y, blockPos.z])
+          }
+          return
+      }
+      
+      // Mouse Leave
+      if (e.type === 'pointerout') {
+          setHoverPos(null)
+          return
+      }
 
       if (e.button === 0) {
-          // Left click: Break block
-          // MOVED TO MINING COMPONENT (See Weapon/Mining logic)
-          // To implement "mining time", we shouldn't break instantly on click.
-          // We will handle this in a separate loop or component that tracks mouse down.
-          
+          // Left click: Break block (handled by Weapon.tsx, but we can keep logic here if needed)
       } else if (e.button === 2) {
           // Right click: Place block
           if (!e.face) return;
@@ -121,10 +196,28 @@ export const VoxelWorld = () => {
   }
 
   return (
-    <group onClick={handleClick}>
+    <group 
+        onClick={handleClick} 
+        onPointerMove={handleClick} 
+        onPointerOut={handleClick}
+    >
         {Object.entries(chunks).map(([key, blocks]) => (
-            <ChunkMesh key={key} chunkKey={key} blocks={blocks} />
+            <ChunkGroup key={key} chunkKey={key} blocks={blocks} />
         ))}
+        
+        {/* Selection Highlight Box */}
+        {hoverPos && (
+            <mesh position={[hoverPos[0] + 0.5, hoverPos[1] + 0.5, hoverPos[2] + 0.5]}>
+                <boxGeometry args={[1.01, 1.01, 1.01]} />
+                <meshBasicMaterial 
+                    color="white" 
+                    wireframe 
+                    transparent 
+                    opacity={0.4} 
+                    depthTest={false} // Always show on top? No, might look weird through walls.
+                />
+            </mesh>
+        )}
     </group>
   )
 }

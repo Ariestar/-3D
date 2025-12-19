@@ -3,6 +3,7 @@ import { Player } from './Player'
 import { Weapon } from './Weapon'
 import { WorldEnvironment } from './WorldEnvironment'
 import { EnemyManager } from './Enemy'
+import { GuideNPC } from './NPCs'
 
 export const GameScene = () => {
   return (
@@ -13,6 +14,7 @@ export const GameScene = () => {
       <Weapon />
       <VoxelWorld />
       <EnemyManager />
+      <GuideNPC />
     </>
   )
 }

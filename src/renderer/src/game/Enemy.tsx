@@ -136,15 +136,18 @@ const Slime = ({ data }: { data: Enemy }) => {
             {/* Health Bar */}
             <Html position={[0, 1.2, 0]} center>
                 <div style={{ 
-                    background: 'red', 
-                    width: '50px', 
-                    height: '5px', 
-                    border: '1px solid black' 
+                    background: '#333', 
+                    width: '80px', 
+                    height: '10px', 
+                    border: '2px solid white',
+                    borderRadius: '4px',
+                    overflow: 'hidden'
                 }}>
                     <div style={{ 
                         background: '#00FF00', 
                         width: `${(data.health / 20) * 100}%`, 
-                        height: '100%' 
+                        height: '100%',
+                        transition: 'width 0.2s ease-out'
                     }} />
                 </div>
             </Html>
@@ -154,19 +157,19 @@ const Slime = ({ data }: { data: Enemy }) => {
 
 export const EnemyManager = () => {
     const { enemies, spawnEnemy } = useGameStore()
+    const { camera } = useThree()
     
     // Debug spawner
     useFrame(({ clock }) => {
-        // Spawn a slime every 10 seconds if less than 5 enemies
-        if (Math.floor(clock.getElapsedTime()) % 10 === 0 && enemies.length < 5) {
-             // Random pos around 0,0
-             const x = (Math.random() - 0.5) * 20
-             const z = (Math.random() - 0.5) * 20
-             const y = 15 // Drop from sky
+        // Spawn a slime every 3 seconds if less than 20 enemies
+        if (Math.floor(clock.getElapsedTime() * 10) % 30 === 0 && enemies.length < 20) {
+             // Spawn around player (Radius 15-30)
+             const angle = Math.random() * Math.PI * 2
+             const radius = 15 + Math.random() * 15
+             const x = camera.position.x + Math.cos(angle) * radius
+             const z = camera.position.z + Math.sin(angle) * radius
+             const y = 20 // Drop from sky
              
-             // Check if we already spawned this second (hacky debounce)
-             // Better to use a dedicated timer ref
-             // For prototype, this might spawn multiple per second, let's just rely on array length check mostly
              spawnEnemy('slime', [x, y, z])
         }
     })

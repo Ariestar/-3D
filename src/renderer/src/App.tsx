@@ -50,7 +50,7 @@ const HealthBar = () => {
 const Hotbar = () => {
     const { selectedBlock, setSelectedBlock } = useGameStore()
     const [sub] = useKeyboardControls()
-    const blocks: BlockType[] = ['dirt', 'grass', 'stone', 'wood', 'leaf']
+    const blocks: BlockType[] = ['dirt', 'grass', 'stone', 'wood', 'ebonstone', 'crimstone']
     
     useEffect(() => {
         return sub(
@@ -61,6 +61,7 @@ const Hotbar = () => {
                 if (pressed.slot3) setSelectedBlock(blocks[2])
                 if (pressed.slot4) setSelectedBlock(blocks[3])
                 if (pressed.slot5) setSelectedBlock(blocks[4])
+                // Add more slots if needed
             }
         )
     }, [sub, setSelectedBlock])
