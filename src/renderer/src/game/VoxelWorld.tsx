@@ -1,9 +1,11 @@
 import { useLayoutEffect, useEffect, useRef, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import { createNoise2D } from 'simplex-noise'
-import { useGameStore, BlockType, Block, getChunkKey, CHUNK_SIZE } from './store'
+import { useGameStore, BlockType, Block, getChunkKey } from './store'
 import { ThreeEvent, useLoader } from '@react-three/fiber'
 import { textureGenerators } from './textures'
+import { createAtlasBoxGeometry } from './geometry'
+import { configureAtlasTexture } from './textureUtils'
 
 // Generate textures once
 const textureData = {
@@ -34,19 +36,29 @@ const textureData = {
 const BlockMesh = ({ type, blocks }: { type: BlockType, blocks: Block[] }) => {
     const meshRef = useRef<THREE.InstancedMesh>(null!)
     const texture = useLoader(THREE.TextureLoader, textureData[type])
-    
-    // Nearest filter for pixel art look
-    texture.magFilter = THREE.NearestFilter
-    texture.minFilter = THREE.NearestFilter
+    configureAtlasTexture(texture)
+    const geometry = useMemo(() => createAtlasBoxGeometry(), [])
 
     useLayoutEffect(() => {
         if (!meshRef.current) return
         
         const count = blocks.length
-        if (count === 0) {
-            meshRef.current.count = 0
-            return
-        }
+        
+        // Reset matrix to zero scale for unused instances if we were reusing a larger buffer
+        // But here we re-render on blocks change, so just setting count is mostly fine.
+        // HOWEVER, if the 'blocks' array shrinks, React might not unmount/remount this component,
+        // it just updates props. If 'count' decreases, we are fine.
+        // If 'count' increases, we need to ensure the buffer is large enough.
+        // We set args to 2000. If count > 2000, we have a problem (will not render).
+        // If count < 2000, we set .count.
+        
+        // The artifacts (stretched polygons) usually happen when a matrix has NaNs or Infinite values,
+        // OR when we render instances that haven't been initialized yet.
+        
+        // CRITICAL FIX: Explicitly zero out unused matrices or ensure we only render what we set.
+        meshRef.current.count = count
+        
+        if (count === 0) return
 
         const tempObject = new THREE.Object3D()
 
@@ -56,19 +68,39 @@ const BlockMesh = ({ type, blocks }: { type: BlockType, blocks: Block[] }) => {
             meshRef.current.setMatrixAt(i, tempObject.matrix)
         })
 
-        meshRef.current.count = count
         meshRef.current.instanceMatrix.needsUpdate = true
     }, [blocks])
 
     return (
-        <instancedMesh ref={meshRef} args={[undefined, undefined, 2000]} castShadow receiveShadow>
-            <boxGeometry args={[1, 1, 1]} />
+        <instancedMesh ref={meshRef} args={[undefined, undefined, 2000]} geometry={geometry} castShadow receiveShadow>
             <meshStandardMaterial map={texture} roughness={0.8} />
         </instancedMesh>
     )
 }
 
-const ChunkGroup = ({ chunkKey, blocks }: { chunkKey: string, blocks: Block[] }) => {
+// Separate component for Selection Highlight to avoid re-rendering the whole world
+const SelectionBox = ({ position }: { position: [number, number, number] | null }) => {
+    const texture = useLoader(THREE.TextureLoader, textureGenerators.selection())
+    texture.magFilter = THREE.NearestFilter
+    texture.minFilter = THREE.NearestFilter
+
+    if (!position) return null
+
+    return (
+        <mesh position={[position[0] + 0.5, position[1] + 0.5, position[2] + 0.5]}>
+            <boxGeometry args={[1.01, 1.01, 1.01]} />
+            <meshBasicMaterial 
+                map={texture}
+                transparent 
+                opacity={0.8}
+                depthTest={false} // Always show on top
+                side={THREE.DoubleSide}
+            />
+        </mesh>
+    )
+}
+
+const ChunkGroup = ({ blocks }: { blocks: Block[] }) => {
     // Group blocks by type
     const blocksByType = useMemo(() => {
         const groups: Partial<Record<BlockType, Block[]>> = {}
@@ -89,7 +121,7 @@ const ChunkGroup = ({ chunkKey, blocks }: { chunkKey: string, blocks: Block[] })
 }
 
 export const VoxelWorld = () => {
-  const { chunks, setChunks, addBlock, removeBlock, selectedBlock } = useGameStore()
+  const { chunks, setChunks, addBlock, selectedBlock } = useGameStore()
   
   // Initial Generation
   useEffect(() => {
@@ -202,22 +234,11 @@ export const VoxelWorld = () => {
         onPointerOut={handleClick}
     >
         {Object.entries(chunks).map(([key, blocks]) => (
-            <ChunkGroup key={key} chunkKey={key} blocks={blocks} />
+            <ChunkGroup key={key} blocks={blocks} />
         ))}
         
         {/* Selection Highlight Box */}
-        {hoverPos && (
-            <mesh position={[hoverPos[0] + 0.5, hoverPos[1] + 0.5, hoverPos[2] + 0.5]}>
-                <boxGeometry args={[1.01, 1.01, 1.01]} />
-                <meshBasicMaterial 
-                    color="white" 
-                    wireframe 
-                    transparent 
-                    opacity={0.4} 
-                    depthTest={false} // Always show on top? No, might look weird through walls.
-                />
-            </mesh>
-        )}
+        <SelectionBox position={hoverPos} />
     </group>
   )
 }

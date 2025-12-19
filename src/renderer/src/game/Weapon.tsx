@@ -17,7 +17,7 @@ export const Weapon = () => {
 
   // Mining State
   const miningTime = useRef(0)
-  const MINING_SPEED = 1.5 // Seconds to break a block
+  const MINING_SPEED = 0.5
   const { removeBlock } = useGameStore()
   
   // Raycaster for mining
@@ -77,13 +77,13 @@ export const Weapon = () => {
                  
                  // Break block if timer reached
                  // Different blocks could have different hardness
-                 if (miningTime.current >= 0.5) { // Fixed 0.5s for now
-                     const normal = hit.face.normal.clone()
-                     // Move slightly inside
-                     const p = hit.point.clone().sub(normal.multiplyScalar(0.1)).floor()
-                     removeBlock(p.x, p.y, p.z)
-                     miningTime.current = 0 // Reset
-                 }
+                if (miningTime.current >= MINING_SPEED) {
+                    const normal = hit.face.normal.clone()
+                    // Move slightly inside
+                    const p = hit.point.clone().sub(normal.multiplyScalar(0.1)).floor()
+                    removeBlock(p.x, p.y, p.z)
+                    miningTime.current = 0 // Reset
+                }
             }
         }
     } else {
