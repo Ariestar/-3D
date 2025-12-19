@@ -26,6 +26,16 @@ export const textureGenerators = {
     createNoiseTileCanvas('#2e7d32', '#1b5e20', 3),
     createNoiseTileCanvas('#2e7d32', '#1b5e20', 3),
   ),
+  sand: () => createAtlas(
+    createNoiseTileCanvas('#e1c16e', '#c9a24f', 1),
+    createNoiseTileCanvas('#e1c16e', '#c9a24f', 1),
+    createNoiseTileCanvas('#e1c16e', '#c9a24f', 1),
+  ),
+  snow: () => createAtlas(
+    createNoiseTileCanvas('#f5f7fa', '#dfe4ea', 0.6),
+    createNoiseTileCanvas('#f5f7fa', '#dfe4ea', 0.6),
+    createNoiseTileCanvas('#f5f7fa', '#dfe4ea', 0.6),
+  ),
   ebonstone: () => createAtlas(
     createNoiseTileCanvas('#615286', '#453862', 2),
     createNoiseTileCanvas('#615286', '#453862', 2),

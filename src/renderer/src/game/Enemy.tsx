@@ -30,6 +30,8 @@ const Slime = ({ data }: { data: Enemy }) => {
     
     const [isGrounded, setIsGrounded] = useState(false)
     const jumpTimer = useRef(Math.random() * 2) // Random start time
+    const patrolTimer = useRef(0)
+    const patrolDir = useRef(new THREE.Vector3((Math.random()-0.5), 0, (Math.random()-0.5)).normalize())
 
     useFrame((_state, delta) => {
         if (!meshRef.current) return
@@ -53,6 +55,18 @@ const Slime = ({ data }: { data: Enemy }) => {
             
             setIsGrounded(false)
             jumpTimer.current = 1 + Math.random() * 2 // Jump every 1-3 seconds
+        } else if (isGrounded && distToPlayer >= AGGRO_RANGE) {
+            patrolTimer.current -= dt
+            if (patrolTimer.current <= 0) {
+                patrolDir.current.set((Math.random()-0.5), 0, (Math.random()-0.5)).normalize()
+                patrolTimer.current = 2 + Math.random() * 3
+            }
+            velocity.current.x = patrolDir.current.x * SLIME_MOVE_SPEED * 0.6
+            velocity.current.z = patrolDir.current.z * SLIME_MOVE_SPEED * 0.6
+            if (Math.random() < 0.01) {
+                velocity.current.y = SLIME_JUMP_FORCE * 0.5
+                setIsGrounded(false)
+            }
         }
 
         // 2. Physics Logic

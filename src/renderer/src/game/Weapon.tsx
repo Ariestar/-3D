@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react'
 import { useFrame, createPortal, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { useGameStore } from './store'
+import { useGameStore, BLOCK_PROPERTIES } from './store'
 
 export const Weapon = () => {
   const { camera } = useThree()
@@ -17,7 +17,7 @@ export const Weapon = () => {
 
   // Mining State
   const miningTime = useRef(0)
-  const MINING_SPEED = 0.5
+  const MINING_SPEED = 0.4
   const { removeBlock } = useGameStore()
   
   // Raycaster for mining
@@ -77,13 +77,15 @@ export const Weapon = () => {
                  
                  // Break block if timer reached
                  // Different blocks could have different hardness
-                if (miningTime.current >= MINING_SPEED) {
-                    const normal = hit.face.normal.clone()
-                    // Move slightly inside
-                    const p = hit.point.clone().sub(normal.multiplyScalar(0.1)).floor()
-                    removeBlock(p.x, p.y, p.z)
-                    miningTime.current = 0 // Reset
-                }
+                 const normal = hit.face.normal.clone()
+                 const p = hit.point.clone().sub(normal.multiplyScalar(0.1)).floor()
+                 const b = useGameStore.getState().getBlock(p.x, p.y, p.z)
+                 const hardness = b ? BLOCK_PROPERTIES[b.type].hardness : 1
+                 const required = MINING_SPEED * hardness
+                 if (miningTime.current >= required) {
+                     removeBlock(p.x, p.y, p.z)
+                     miningTime.current = 0 // Reset
+                 }
             }
         }
     } else {

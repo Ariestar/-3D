@@ -48,9 +48,9 @@ const HealthBar = () => {
 }
 
 const Hotbar = () => {
-    const { selectedBlock, setSelectedBlock } = useGameStore()
+    const { selectedBlock, setSelectedBlock, inventory } = useGameStore()
     const [sub] = useKeyboardControls()
-    const blocks: BlockType[] = ['dirt', 'grass', 'stone', 'wood', 'ebonstone', 'crimstone']
+    const blocks: BlockType[] = (Object.keys(inventory) as BlockType[]).filter(b => inventory[b] > 0)
     
     useEffect(() => {
         return sub(
@@ -78,6 +78,9 @@ const Hotbar = () => {
                     <span style={{ position: 'absolute', top: 2, left: 4, fontSize: 10, color: 'white' }}>
                         {i + 1}
                     </span>
+                    <span style={{ position: 'absolute', bottom: 2, right: 4, fontSize: 10, color: 'white' }}>
+                        {inventory[b]}
+                    </span>
                 </div>
             ))}
         </div>
@@ -104,6 +107,8 @@ function App() {
           { name: 'left', keys: ['ArrowLeft', 'a', 'A'] },
           { name: 'right', keys: ['ArrowRight', 'd', 'D'] },
           { name: 'jump', keys: ['Space'] },
+          { name: 'run', keys: ['Shift'] },
+          { name: 'crouch', keys: ['Control'] },
           { name: 'slot1', keys: ['1'] },
           { name: 'slot2', keys: ['2'] },
           { name: 'slot3', keys: ['3'] },

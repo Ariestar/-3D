@@ -3,6 +3,7 @@ import { useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useKeyboardControls, PointerLockControls } from '@react-three/drei'
 import { useGameStore } from './store'
+import { getSpeedMultiplier } from './movementUtils'
 
 const SPEED = 5
 const JUMP_FORCE = 6
@@ -35,7 +36,7 @@ export const Player = () => {
     // (e.g. during initial load or tab switch)
     const dt = Math.min(delta, 0.1)
 
-    const { forward, backward, left, right, jump } = get()
+    const { forward, backward, left, right, jump, run, crouch } = get()
     
     // Movement direction
     const direction = new THREE.Vector3()
@@ -45,7 +46,7 @@ export const Player = () => {
     direction
       .subVectors(frontVector, sideVector)
       .normalize()
-      .multiplyScalar(SPEED * dt)
+      .multiplyScalar(SPEED * dt * getSpeedMultiplier(run, crouch))
       .applyEuler(camera.rotation)
 
     // Apply movement to temporary position

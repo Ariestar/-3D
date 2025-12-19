@@ -4,6 +4,7 @@ import { Weapon } from './Weapon'
 import { WorldEnvironment } from './WorldEnvironment'
 import { EnemyManager } from './Enemy'
 import { GuideNPC } from './NPCs'
+import { AchievementsManager } from './achievements'
 
 export const GameScene = () => {
   return (
@@ -15,6 +16,7 @@ export const GameScene = () => {
       <VoxelWorld />
       <EnemyManager />
       <GuideNPC />
+      <AchievementsManager />
     </>
   )
 }

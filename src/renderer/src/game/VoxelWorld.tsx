@@ -6,6 +6,7 @@ import { ThreeEvent, useLoader } from '@react-three/fiber'
 import { textureGenerators } from './textures'
 import { createAtlasBoxGeometry } from './geometry'
 import { configureAtlasTexture } from './textureUtils'
+import { chooseBiomeBlocks } from './worldGen'
 
 // Generate textures once
 const textureData = {
@@ -18,6 +19,8 @@ const textureData = {
     crimstone: textureGenerators.crimstone(),
     crimtane: textureGenerators.crimtane(),
     demonite: textureGenerators.demonite(),
+    sand: textureGenerators.sand(),
+    snow: textureGenerators.snow(),
 }
 
 // Map BlockType to Texture Index for Texture Atlas (simplified: using individual materials for now)
@@ -100,7 +103,23 @@ const SelectionBox = ({ position }: { position: [number, number, number] | null 
     )
 }
 
-const ChunkGroup = ({ blocks }: { blocks: Block[] }) => {
+import { useThree, useFrame } from '@react-three/fiber'
+import { CHUNK_SIZE } from './store'
+const ChunkGroup = ({ chunkKey, blocks }: { chunkKey: string, blocks: Block[] }) => {
+    const groupRef = useRef<THREE.Group>(null!)
+    const camera = useThree((s) => s.camera)
+    useFrame(() => {
+        if (!groupRef.current) return
+        const [cx, cy, cz] = chunkKey.split(',').map(n => parseInt(n, 10))
+        const wx = cx * CHUNK_SIZE + CHUNK_SIZE / 2
+        const wy = cy * CHUNK_SIZE + CHUNK_SIZE / 2
+        const wz = cz * CHUNK_SIZE + CHUNK_SIZE / 2
+        const dx = camera.position.x - wx
+        const dy = camera.position.y - wy
+        const dz = camera.position.z - wz
+        const dist2 = dx*dx + dy*dy + dz*dz
+        groupRef.current.visible = dist2 < (60 * 60)
+    })
     // Group blocks by type
     const blocksByType = useMemo(() => {
         const groups: Partial<Record<BlockType, Block[]>> = {}
@@ -112,7 +131,7 @@ const ChunkGroup = ({ blocks }: { blocks: Block[] }) => {
     }, [blocks])
 
     return (
-        <group>
+        <group ref={groupRef}>
             {(Object.keys(blocksByType) as BlockType[]).map(type => (
                 <BlockMesh key={type} type={type} blocks={blocksByType[type]!} />
             ))}
@@ -143,22 +162,7 @@ export const VoxelWorld = () => {
         // Terraria-like generation logic: Hills + Layers
         const surfaceY = Math.floor(noise2D(x * 0.05, z * 0.05) * 8)
         
-        // Biome Logic (Simple region based)
-        // x < -10 : Corruption
-        // x > 10 : Crimson
-        let surfaceBlock: BlockType = 'grass'
-        let subBlock: BlockType = 'dirt'
-        let stoneBlock: BlockType = 'stone'
-        
-        if (x < -15) {
-            surfaceBlock = 'ebonstone'
-            subBlock = 'ebonstone'
-            stoneBlock = 'ebonstone'
-        } else if (x > 15) {
-            surfaceBlock = 'crimstone'
-            subBlock = 'crimstone'
-            stoneBlock = 'crimstone'
-        }
+        const [surfaceBlock, subBlock, stoneBlock] = chooseBiomeBlocks(x, z)
 
         // Surface
         addToChunk(x, surfaceY, z, surfaceBlock)
@@ -234,7 +238,7 @@ export const VoxelWorld = () => {
         onPointerOut={handleClick}
     >
         {Object.entries(chunks).map(([key, blocks]) => (
-            <ChunkGroup key={key} blocks={blocks} />
+            <ChunkGroup key={key} chunkKey={key} blocks={blocks} />
         ))}
         
         {/* Selection Highlight Box */}
@@ -242,3 +246,4 @@ export const VoxelWorld = () => {
     </group>
   )
 }
+
